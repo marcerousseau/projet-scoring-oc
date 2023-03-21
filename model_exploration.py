@@ -139,6 +139,10 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
             scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
         else:
             scores = cross_val_score(pipeline, X, y, scoring=scorer, cv=cv, n_jobs=-1)
+        for secondary_score in ['roc_auc', 'f1', 'precision', 'recall']:
+            if secondary_score != scorer:
+                secondary_scores = cross_val_score(pipeline, X, y, scoring=secondary_score, cv=cv, n_jobs=-1)
+                log_metric(secondary_score, np.mean(secondary_scores))
         mean_score = np.mean(scores)
 
         with mlflow.start_run(run_name=experiment_name, nested=True):
