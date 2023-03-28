@@ -19,7 +19,7 @@ def create_app(config_name=None):
     logging.basicConfig(format=FORMAT)
 
     # Registering all the blueprints
-    from app.site_routes import site
+    from site_routes import site
     app.register_blueprint(site)
 
     return app
