@@ -65,36 +65,36 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
     if model_str == 'decision_tree':
         model = DecisionTreeClassifier()
         param_grid = {
-            'model__max_depth': [None, 5, 10, 15], # Best is 5 over [None, 5, 10, 15]
+            'model__max_depth': [5], # Best is 5 over [None, 5, 10, 15]
         }
     elif model_str == 'logistic_regression':
         model = LogisticRegression(solver='liblinear')
         param_grid = {
-            'model__C': [0.001, 0.01, 0.1, 1, 10, 100], # Best is 0.001 over [0.001, 0.01, 0.1, 1, 10, 100]
+            'model__C': [0.001, 0.01], # Best is 0.001 over [0.001, 0.01, 0.1, 1, 10, 100]
         }
     elif model_str == 'ridge_classifier':
         model = RidgeClassifier()
         param_grid = {
-            'model__alpha': [0.1, 1, 10, 100],
+            'model__alpha': [1, 10, 100],
         }
     elif model_str == 'xgb_classifier':
         model = XGBClassifier(eval_metric='logloss', use_label_encoder=False)
         param_grid = {
             'model__max_depth': [3, 5, 7],
-            'model__learning_rate': [0.01, 0.1, 0.2],
-            'model__n_estimators': [100, 200, 300],
+            'model__learning_rate': [0.01, 0.1],
+            'model__n_estimators': [100, 300],
         }
     elif model_str == 'random_forest':
         model = RandomForestClassifier()
         param_grid = {
-            'model__n_estimators': [100, 200, 300],
-            'model__max_depth': [None, 10, 20, 30],
+            'model__n_estimators': [100, 300],
+            'model__max_depth': [None, 10, 30],
             'model__min_samples_split': [2, 5, 10],
         }
     else:
         raise ValueError(f"Unknown model string: {model_str}")
 
-    param_grid = {f"over__k_neighbors": [1, 2, 3, 4, 5, 6, 7], **param_grid}
+    param_grid = {f"over__k_neighbors": [5], **param_grid}
     
     print(f"Original class distribution: {Counter(y)}")
     # SMOTE and RandomUnderSampler
@@ -139,13 +139,6 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
             scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
         else:
             scores = cross_val_score(pipeline, X, y, scoring=scorer, cv=cv, n_jobs=-1)
-        for secondary_score in ['roc_auc', 'f1', 'precision', 'recall', 'custom']:
-            if secondary_score != scorer:
-                if secondary_score == 'custom':
-                    secondary_scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
-                else:
-                    secondary_scores = cross_val_score(pipeline, X, y, scoring=secondary_score, cv=cv, n_jobs=-1)
-                log_metric(secondary_score, np.mean(secondary_scores))
         mean_score = np.mean(scores)
 
         with mlflow.start_run(run_name=experiment_name, nested=True):
@@ -155,6 +148,13 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
             log_params({'models': model_str, 'sample_size': sample_size, 'scorer': scorer})
             log_metric(scorer, mean_score)
             all_scores.append((params, mean_score))
+            for secondary_score in ['roc_auc', 'precision', 'recall', 'custom']:
+                if secondary_score != scorer:
+                    if secondary_score == 'custom':
+                        secondary_scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
+                    else:
+                        secondary_scores = cross_val_score(pipeline, X, y, scoring=secondary_score, cv=cv, n_jobs=-1)
+                    log_metric(secondary_score, np.mean(secondary_scores))
 
     # Find the best parameters and score
     best_params, best_score = max(all_scores, key=lambda x: x[1])
@@ -217,6 +217,6 @@ def custom_score_func(y_true, y_pred):
 
 if __name__ == "__main__":
     custom_scorer = make_scorer(custom_score_func, greater_is_better=True)
-    # for model_str in ['logistic_regression', 'decision_tree', 'random_forest', 'xgb_classifier', 'ridge_classifier']:
-    for model_str in ['decision_tree', 'random_forest', 'xgb_classifier', 'ridge_classifier']:
-        run_classifier(model_str=model_str, sample_size=0.1, custom_scorer=custom_scorer, scorer='roc_auc', experiment_name=model_str + '-experiment')
+    for model_str in ['ridge_classifier', 'logistic_regression', 'decision_tree', 'random_forest', 'xgb_classifier']:
+    # for model_str in ['decision_tree', 'random_forest', 'xgb_classifier', 'ridge_classifier']:
+        run_classifier(model_str=model_str, sample_size=0.3, custom_scorer=custom_scorer, scorer='roc_auc', experiment_name='full' + '-experiment')
