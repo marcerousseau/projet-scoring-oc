@@ -1,0 +1,36 @@
+steps:
+  # Step 0: Install dependencies
+  - name: python:3.10-slim
+    entrypoint: pip
+    args: ["install", "-r", "requirements.txt", "--user"]
+
+  # Step 1: Run unit tests
+  - name: python:3.10-slim
+    entrypoint: python
+    args: ["-m", "pytest", "--junitxml=${SHORT_SHA}_test_log.xml"] 
+
+  # Step 2: Docker Build
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '--platform=linux/amd64', '-t', 
+           'europe-west1-docker.pkg.dev/reliable-osprey-344812/hello-repo/myimage:${SHORT_SHA}', '.']
+
+  # Step 3: Docker push to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push',  'europe-west1-docker.pkg.dev/reliable-osprey-344812/hello-repo/myimage:${SHORT_SHA}']
+
+  # Step 4: Deploy to Cloud Run
+  - name: google/cloud-sdk
+    args: ['gcloud', 'run', 'deploy', 'project-scoring', 
+           '--image=europe-west1-docker.pkg.dev/reliable-osprey-344812/hello-repo/myimage:${SHORT_SHA}', 
+           '--region', 'europe-west1', '--platform', 'managed', 
+           '--allow-unauthenticated']
+
+# Step 5: Save test logs to Google Cloud Storage
+artifacts:
+  objects:
+    location: gs://project-scoring/
+    paths:
+      - ${SHORT_SHA}_test_log.xml
+# Step 6: Store images in Google Artifact Registry 
+images:
+  - europe-west1-docker.pkg.dev/reliable-osprey-344812/hello-repo/myimage:${SHORT_SHA}

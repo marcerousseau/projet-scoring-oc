@@ -1,7 +1,9 @@
 mlflow
-seaborn
 sklearn
 lazypredict
 imblearn
 matplotlib
 seaborn
+pytest
+gunicorn==20.1.0
+flask==2.0.1
