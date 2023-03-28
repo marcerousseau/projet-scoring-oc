@@ -134,3 +134,6 @@ result_lazy_classifier.numbers
 .DS_Store
 best_model.pkl
 feature_importances_best_decision_tree.png
+feature_importances_best_logistic_regression.png
+feature_importances_best_ridge_classifier.png
+first_test.xml
