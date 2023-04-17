@@ -7,9 +7,10 @@ from typing import Any, Callable, Dict, Optional
 import itertools
 
 from lazypredict.Supervised import LazyClassifier
-from sklearn.model_selection import train_test_split, GridSearchCV, RepeatedStratifiedKFold, cross_val_score, BaseCrossValidator
+from sklearn.model_selection import train_test_split, GridSearchCV, RepeatedStratifiedKFold, cross_val_score, BaseCrossValidator, cross_val_predict, KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ParameterGrid
+from sklearn.metrics import confusion_matrix
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import RidgeClassifier
@@ -29,10 +30,12 @@ from sklearn.metrics import fbeta_score, make_scorer, roc_auc_score, confusion_m
 import mlflow
 from mlflow import log_metric, log_params
 
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.use('svg')
 import seaborn as sns
 
-def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom_scorer = None, sample_size = 1, experiment_name = "default-experiment"):
+def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom_scorer = None, sample_size = 1, max_id = None, experiment_name = "default-experiment", secondary_scores_list=['f1', 'roc_auc', 'precision', 'recall', 'custom']):
     """Run a classifier with the given model and scorer
 
     Args:
@@ -40,11 +43,17 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
         scorer (str, optional): The scorer to use. Defaults to 'roc_auc'. Options are 'roc_auc', 'f1', 'precision', 'recall', 'custom'
         custom_scorer (function, optional): The custom scorer to use. Defaults to None. Required if scorer is 'custom'
         sample_size (float, optional): The sample size to use. Defaults to 1. If < 1, then a random sample of the data is used
+        experiment_name (str, optional): The name of the experiment to log to. Defaults to "default-experiment".
+        secondary_scores (list, optional): The secondary scores to log. Defaults to ['roc_auc', 'precision', 'recall', 'custom'].
     
     """
     # Load data from ./data/df.csv
     df = pd.read_csv("data/df.csv")
-
+    original_size = df.shape[0]
+    print(f"Loaded {df.shape[0]} rows with {df.shape[1]-2} features from data/df.csv")
+    if max_id is not None:
+        df = df[df['SK_ID_CURR'] <= max_id]
+    
     df = df.replace([np.inf, -np.inf], np.nan)
 
     # imputer = KNNImputer(n_neighbors=5)
@@ -52,6 +61,8 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
     df.fillna(df.median(), inplace=True)
 
     X = df.drop(columns=["TARGET"])
+    print(f"SK_ID_CURR range: {X['SK_ID_CURR'].min()} to {X['SK_ID_CURR'].max()} (n={X['SK_ID_CURR'].nunique()})")
+    X = X.drop(columns=["SK_ID_CURR"])
     scaler = StandardScaler()
     X = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
@@ -136,24 +147,36 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
     for params in param_grid_obj:
         pipeline.set_params(**params)
         if scorer == 'custom':
-            scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
+            scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=1)
         else:
-            scores = cross_val_score(pipeline, X, y, scoring=scorer, cv=cv, n_jobs=-1)
+            scores = cross_val_score(pipeline, X, y, scoring=scorer, cv=cv, n_jobs=1)
         mean_score = np.mean(scores)
+
+        # Compute confusion matrix
+        kf = KFold(n_splits=10, shuffle=True, random_state=42)
+        y_pred = cross_val_predict(pipeline, X, y, cv=kf)
+        cm = confusion_matrix(y, y_pred)
+
+        print(f"Model fitted - Confusion matrix: {cm}")
+
 
         with mlflow.start_run(run_name=experiment_name, nested=True):
             # Log the model name as a tag
             mlflow.set_tag("mlflow.runName", model_str)
             log_params(params)
-            log_params({'models': model_str, 'sample_size': sample_size, 'scorer': scorer})
+            to_log_sample_size = sample_size 
+            if max_id is not None:
+                to_log_sample_size = round(df.shape[0]/original_size,2)
+            log_params({'models': model_str, 'sample_size': to_log_sample_size, 'scorer': scorer, 'confusion_matrix':str(cm)})
             log_metric(scorer, mean_score)
             all_scores.append((params, mean_score))
-            for secondary_score in ['roc_auc', 'precision', 'recall', 'custom']:
+            for secondary_score in secondary_scores_list:
                 if secondary_score != scorer:
+                    print(f"Computing {secondary_score} score with cross_val_score")
                     if secondary_score == 'custom':
-                        secondary_scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=-1)
+                        secondary_scores = cross_val_score(pipeline, X, y, scoring=custom_scorer, cv=cv, n_jobs=1)
                     else:
-                        secondary_scores = cross_val_score(pipeline, X, y, scoring=secondary_score, cv=cv, n_jobs=-1)
+                        secondary_scores = cross_val_score(pipeline, X, y, scoring=secondary_score, cv=cv, n_jobs=1)
                     log_metric(secondary_score, np.mean(secondary_scores))
 
     # Find the best parameters and score
@@ -186,10 +209,11 @@ def run_classifier(model_str = 'logistic_regression', scorer = 'roc_auc', custom
 
     print("\nFeature Importances:")
     print(feature_importances)
+    print(feature_importances[:5])
 
     # Plot the feature importances
     plt.figure(figsize=(10, 5))
-    sns.barplot(data=feature_importances.loc[:12], x="Importance", y="Feature", orient="h", color="b")
+    sns.barplot(data=feature_importances[:10], x="Importance", y="Feature", orient="h", color="b")
     plt.title("Feature Importances")
     plt.xlabel("Importance")
     plt.ylabel("Feature")
@@ -217,6 +241,6 @@ def custom_score_func(y_true, y_pred):
 
 if __name__ == "__main__":
     custom_scorer = make_scorer(custom_score_func, greater_is_better=True)
-    for model_str in ['ridge_classifier', 'logistic_regression', 'decision_tree', 'random_forest', 'xgb_classifier']:
+    for model_str in ['logistic_regression', 'ridge_classifier', 'decision_tree', 'random_forest', 'xgb_classifier']:
     # for model_str in ['decision_tree', 'random_forest', 'xgb_classifier', 'ridge_classifier']:
-        run_classifier(model_str=model_str, sample_size=0.3, custom_scorer=custom_scorer, scorer='roc_auc', experiment_name='full' + '-experiment')
+        run_classifier(model_str=model_str, max_id = None, sample_size=1, custom_scorer=custom_scorer, scorer='roc_auc', experiment_name='full' + '-experiment', secondary_scores_list=['precision', 'recall', 'accuracy', 'custom', 'f1'])
