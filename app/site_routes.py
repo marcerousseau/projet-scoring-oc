@@ -11,17 +11,23 @@ import requests
 
 site = Blueprint('site', __name__)
 
-MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
+
+# Create a client object
+client = storage.Client()
+# Retrieve the bucket object
+bucket = client.get_bucket('project-scoring')
+
+try:
+    MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
+except:
+    blob = bucket.blob('/best_model_2.pkl')
+    blob.download_to_filename('best_model_2.pkl.pkl')
+
+    MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
 
 try:
     X = pickle.load(open('X.pkl', 'rb'))
 except:
-    # Create a client object
-    client = storage.Client()
-
-    # Retrieve the bucket object
-    bucket = client.get_bucket('project-scoring')
-
     # Retrieve the blob object
     blob = bucket.blob('X.pkl')
 
