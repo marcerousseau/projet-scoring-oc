@@ -140,3 +140,4 @@ first_test.xml
 app/X.pkl
 app/df.csv
 requirements copie.txt
+app/best_model_new.pkl

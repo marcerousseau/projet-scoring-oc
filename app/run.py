@@ -5,6 +5,7 @@ FORMAT = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s() ] 
 logging.basicConfig(format=FORMAT)
 
 
+
 def create_app(config_name=None):
 
     # Initialize flask app
@@ -28,5 +29,5 @@ def create_app(config_name=None):
 # Launch the web server
 if __name__ == '__main__': # pragma: no cover
     app = create_app()
-    debug = app.config["DEBUG"]
+    debug = True
     app.run(debug=debug, host="0.0.0.0", port=int(os.environ.get("PORT", 8087)))
