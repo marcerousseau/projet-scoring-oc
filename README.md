@@ -38,3 +38,6 @@ Then go into the app folder and run the server
 cd app
 python3 run.py
 ```
+
+# DEMO
+Demo is accessible here : https://project-scoring-jltkqgajta-ew.a.run.app
