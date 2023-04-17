@@ -1,5 +1,6 @@
 mlruns/
 data/
+data_drift/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -143,3 +144,5 @@ requirements copie.txt
 app/best_model_new.pkl
 app/best_model_2.pkl
 app/df copie.csv
+data_drift/data_drift_report.html
+.gitignore
