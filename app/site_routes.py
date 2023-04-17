@@ -50,25 +50,72 @@ cols = list(X.columns.to_list())
 cols.remove('id')
 cols.remove('TARGET')
 
+blob = bucket.blob('df.csv')
+blob.download_to_filename('df.csv')
+DF = pd.read_csv('df.csv')
+
 
 @site.route('/', methods=['GET', 'POST'])
 def index():
     customer_id = request.form.get('customer_id')
     # customer_id="100002"
+    error = False
     if customer_id is not None:
         api_route = url_for('site.api', customer_id=customer_id, _external=True)
         response = requests.get(api_route)
         plot_data = response.json()
+        logging.info(f"customer_id: {customer_id} - Plot Data: {plot_data}")
+        if plot_data['error']:
+            plot_data = {}
+            error = True
+        personal_data = plot_data['personal_data']
+        customer_id = plot_data['customer_id']
     else:
         plot_data = {}
+        customer_id = ''
     # Render the Plotly JS graph using the plot data
-    return render_template('landing.html', plot_data=plot_data)
+    return render_template('landing.html', plot_data=plot_data, error=error, personal_data=personal_data, customer_id=customer_id)
+
+@site.route('/autocomplete', methods=['GET'])
+def autocomplete():
+    customer_id = request.args.get('customer_id')
+    customer_id_float = int(float(customer_id))
+    personal_data = DF.loc[DF['SK_ID_CURR']==customer_id_float, cols].to_dict(orient='records')[0]
+    search = request.args.get('search')
+    results = []
+    for key in personal_data.keys():
+        if search in key:
+            results.append(key)
+    return jsonify(results)
+
+@site.route('/get_value')
+def get_value():
+    key = request.args.get('key')
+    customer_id = request.args.get('customer_id')
+    customer_id_float = int(float(customer_id))
+    value = DF.loc[DF['SK_ID_CURR']==customer_id_float, [key]].to_dict(orient='records')[0][key]
+    if value != value or value == np.nan or value == np.inf or value == -np.inf:
+        value = 'N/A'
+    logging.info(f"customer_id: {customer_id} - Key: {key} - Value: {value}")
+    return jsonify({'value': value})
+
+@site.route('/get_description')
+def get_description():
+    key = request.args.get('key')
+    description_dict = {'EXT_SOURCE_1': 'Normalized score from external data source'}
+    if key in description_dict:
+        description = description_dict[key]
+    else:
+        description = 'Description not found'
+    return jsonify({'description': description})
 
 @site.route('/api/<customer_id>')
 def api(customer_id):
     customer_id_float = int(float(customer_id))
-    logging.info(f"customer_id: {customer_id} - Data: {X[X['id']==customer_id_float]}")
+    # logging.info(f"customer_id: {customer_id} - Data: {X[X['id']==customer_id_float]}")
     try:
+        personal_data = DF.loc[DF['SK_ID_CURR']==customer_id_float, cols].to_dict(orient='records')[0]
+        # logging.info(f"customer_id: {customer_id} - Personal Data: {personal_data}")
         prediction = MODEL.predict(X.loc[X['id']==customer_id_float, cols])
         pred_ = float(prediction[0])
         probabilities = MODEL.predict_proba(X.loc[X['id']==customer_id_float, cols])
@@ -85,9 +132,9 @@ def api(customer_id):
             shap_predict += shap_values.values[0][i][1]
         top_10_shap_dict_ordered = {k: v for k, v in sorted(top_10_shap_dict.items(), key=lambda item: abs(item[1]), reverse=True)}
         top_10_shap_dict_ordered = dict(list(top_10_shap_dict_ordered.items())[:10])
-        logging.info(f"customer_id: {customer_id} - Top 10 SHAP Values: {top_10_shap_dict_ordered}")
-        logging.info(f"customer_id: {customer_id} - SHAP Predict: {shap_predict}")
-        return jsonify({'customer_id': customer_id, 'prediction': pred_, 'probability_default':proba_, 'error':False, 'error_message':'', 'top_10_shap_dict_ordered':top_10_shap_dict_ordered, 'base_shape_proba_default': shap_values.base_values[0][1], 'shap_predict': shap_predict})
+        # logging.info(f"customer_id: {customer_id} - Top 10 SHAP Values: {top_10_shap_dict_ordered}")
+        # logging.info(f"customer_id: {customer_id} - SHAP Predict: {shap_predict}")
+        return jsonify({'customer_id': customer_id, 'prediction': pred_, 'probability_default':proba_, 'error':False, 'error_message':'', 'top_10_shap_dict_ordered':top_10_shap_dict_ordered, 'base_shape_proba_default': shap_values.base_values[0][1], 'shap_predict': shap_predict, 'personal_data':personal_data})
     except Exception as e:
         prediction = None
         logging.error(f"customer_id: {customer_id} - Error: {e} - traceback: {traceback.format_exc()}")
