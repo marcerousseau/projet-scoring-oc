@@ -46,113 +46,117 @@
                 </div>
             </div>
         </section>
-        <section class="section section-lg py-sm-0 mb-5">
-            <div class="container z-2 mt-sm-n6 mt-md-n7">
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <div class="card bg-white border-gray-300 text-gray p-4">
-                            <div class="card-header bg-white border-0 pb-0">
-                                <h2 class="h4 m-0">Notation</h2>
+        {% if plot_data != {} %}
+            <section class="section section-lg py-sm-0 mb-5">
+                <div class="container z-2 mt-sm-n6 mt-md-n7">
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="card bg-white border-gray-300 text-gray p-4">
+                                <div class="card-header bg-white border-0 pb-0">
+                                    <h2 class="h4 m-0">Notation</h2>
+                                </div>
+                                <div class="card-body">
+                                    <p>
+                                        La jauge ci-dessous représente la probabilité de défaut de paiement du client.Pour une valeur entre 0% et 50% vous pouvez accorder un crédit sans risque. Entre 50% et 80% vous pouvez accorder un crédit mais avec une caution et un accord du département risque. Au delà de 80% vous ne pouvez pas accorder de crédit.
+                                    </p>
+                                    <div id="gauge-chart"></div>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <p>
-                                    La jauge ci-dessous représente la probabilité de défaut de paiement du client.Pour une valeur entre 0% et 50% vous pouvez accorder un crédit sans risque. Entre 50% et 80% vous pouvez accorder un crédit mais avec une caution et un accord du département risque. Au delà de 80% vous ne pouvez pas accorder de crédit.
-                                </p>
-                                <div id="gauge-chart"></div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="card bg-white border-gray-300 text-gray p-4">
+                                <div class="card-header bg-white border-0 pb-0">
+                                    <h2 class="h4 m-0">Explication</h2>
+                                </div>
+                                <div class="card-body">
+                                    <p>
+                                        Le graphique ci-dessous vous permet de déterminer les 10 paramêtres principaux ayant mené à la décision par l'algortihtme de scoring. Les paramètres en rouge sont ceux qui ont augmenté le risque de défaut et ceux en vert ont diminué le risque de défaut.
+                                    </p>
+                                    <div id="chart-explanation" style="min-height: 800px;"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 mb-3">
-                        <div class="card bg-white border-gray-300 text-gray p-4">
-                            <div class="card-header bg-white border-0 pb-0">
-                                <h2 class="h4 m-0">Explication</h2>
-                            </div>
-                            <div class="card-body">
-                                <p>
-                                    Le graphique ci-dessous vous permet de déterminer les 10 paramêtres principaux ayant mené à la décision par l'algortihtme de scoring. Les paramètres en rouge sont ceux qui ont augmenté le risque de défaut et ceux en vert ont diminué le risque de défaut.
-                                </p>
-                                <div id="chart-explanation" style="min-height: 800px;"></div>
-                            </div>
-                        </div>
-                    </div>
+                    Accéder au code source : <a href="https://github.com/marcerousseau/projet-scoring-oc">Github </a>
                 </div>
-                Accéder au code source : <a href="https://github.com/marcerousseau/projet-scoring-oc">Github </a>
-            </div>
-            
-        </section>
+                
+            </section>
+        {% endif %}
         
 
     </main>
-    <script>
-        var data = [
-        {
-            value: {{plot_data['probability_default']*100 }},
-            title: { text: "Probabilité de défaut" },
-            type: "indicator",
-            mode: "gauge+number",
-            gauge: {
-            axis: { range: [null, 100] },
-            steps: [
-                { range: [0, 50], color: "green" },
-                { range: [50, 80], color: "orange" },
-                { range: [80, 100], color: "red" }
-            ],
-            threshold: {
-                line: { color: "black", width: 4 },
-                thickness: 0.75,
-                value: 80
-            },
-            bar: { color: "black" }
-            }
-        }
-        ];
-        var layout = {
-        responsive: true,
-        paper_bgcolor: "white",
-        font: {
-            color: "black",
-            family: "Arial"
-        },
-        annotations: [
+    {% if plot_data != {} %}
+        <script>
+            var data = [
             {
-            text: "%",
-            font: {
-                size: 25
-            },
-            showarrow: false,
-            x: 0.5,
-            y: 0.5
+                value: {{plot_data['probability_default']*100 }},
+                title: { text: "Probabilité de défaut" },
+                type: "indicator",
+                mode: "gauge+number",
+                gauge: {
+                axis: { range: [null, 100] },
+                steps: [
+                    { range: [0, 50], color: "green" },
+                    { range: [50, 80], color: "orange" },
+                    { range: [80, 100], color: "red" }
+                ],
+                threshold: {
+                    line: { color: "black", width: 4 },
+                    thickness: 0.75,
+                    value: 80
+                },
+                bar: { color: "black" }
+                }
             }
-        ]
-        };
-    
-        Plotly.newPlot("gauge-chart", data, layout);
-    </script>
-    <script>
-        var data = {{ plot_data['top_10_shap_dict_ordered'] | tojson }};
-        var dataArr = Object.entries(data).map(([x, y]) => ({x, y}));
-        dataArr.sort((a, b) => Math.abs(b.y) - Math.abs(a.y));
-        var xValues = dataArr.map(({x}) => x);
-        var yValues = dataArr.map(({y}) => y);
-        var trace = {
-          x: xValues,
-          y: yValues,
-          type: "bar",
-          marker: {
-            color: yValues.map(function (d) {
-              return d >= 0 ? "red" : "green";
-            })
-          }
-        };
-        var layout = {
-          title: "Augmentation (rouge)/Baisse (vert) du risque de défaut en fonction du paramètre",
-          yaxis: { title: "Augmentation (rouge)/Baisse (vert) du risque de défaut", tickformat: ',.0%'},
-          xaxis: { title: "Paramètre", tickangle: -45, automargin: true, tickfont: { size: 10 } },
-          bargap: 0.05,
-          responsive: true,
-        };
-        var data = [trace];
-        Plotly.newPlot("chart-explanation", data, layout);
-      </script>
+            ];
+            var layout = {
+            responsive: true,
+            paper_bgcolor: "white",
+            font: {
+                color: "black",
+                family: "Arial"
+            },
+            annotations: [
+                {
+                text: "%",
+                font: {
+                    size: 25
+                },
+                showarrow: false,
+                x: 0.5,
+                y: 0.5
+                }
+            ]
+            };
+        
+            Plotly.newPlot("gauge-chart", data, layout);
+        </script>
+        <script>
+            var data = {{ plot_data['top_10_shap_dict_ordered'] | tojson }};
+            var dataArr = Object.entries(data).map(([x, y]) => ({x, y}));
+            dataArr.sort((a, b) => Math.abs(b.y) - Math.abs(a.y));
+            var xValues = dataArr.map(({x}) => x);
+            var yValues = dataArr.map(({y}) => y);
+            var trace = {
+            x: xValues,
+            y: yValues,
+            type: "bar",
+            marker: {
+                color: yValues.map(function (d) {
+                return d >= 0 ? "red" : "green";
+                })
+            }
+            };
+            var layout = {
+            title: "Augmentation (rouge)/Baisse (vert) du risque de défaut en fonction du paramètre",
+            yaxis: { title: "Augmentation (rouge)/Baisse (vert) du risque de défaut", tickformat: ',.0%'},
+            xaxis: { title: "Paramètre", tickangle: -45, automargin: true, tickfont: { size: 10 } },
+            bargap: 0.05,
+            responsive: true,
+            };
+            var data = [trace];
+            Plotly.newPlot("chart-explanation", data, layout);
+        </script>
+    {% endif %}
 </body>
 </html>

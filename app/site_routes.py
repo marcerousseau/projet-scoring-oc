@@ -60,7 +60,7 @@ def index():
         response = requests.get(api_route)
         plot_data = response.json()
     else:
-        plot_data = None
+        plot_data = {}
     # Render the Plotly JS graph using the plot data
     return render_template('landing.html', plot_data=plot_data)
 
