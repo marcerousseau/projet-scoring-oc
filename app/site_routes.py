@@ -17,37 +17,10 @@ client = storage.Client()
 # Retrieve the bucket object
 bucket = client.get_bucket('project-scoring')
 
-try:
-    MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
-except:
-    blob = bucket.blob('/best_model_2.pkl')
-    blob.download_to_filename('best_model_2.pkl.pkl')
+blob = bucket.blob('best_model_2.pkl')
+blob.download_to_filename('best_model_2.pkl')
 
-    MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
-
-try:
-    X = pickle.load(open('X.pkl', 'rb'))
-except:
-    # Retrieve the blob object
-    blob = bucket.blob('X.pkl')
-
-    # Download the file to a local file
-    blob.download_to_filename('X.pkl')
-    X = pickle.load(open('X.pkl', 'rb'))
-
-
-@site.route('/', methods=['GET', 'POST'])
-def index():
-    customer_id = request.form.get('customer_id')
-    # customer_id="100002"
-    if customer_id is not None:
-        api_route = url_for('site.api', customer_id=customer_id, _external=True)
-        response = requests.get(api_route)
-        plot_data = response.json()
-    else:
-        plot_data = None
-    # Render the Plotly JS graph using the plot data
-    return render_template('landing.html', plot_data=plot_data)
+MODEL = pickle.load(open('best_model_2.pkl', 'rb'))
 
 def reload_X():
     df = pd.read_csv('df.csv')
@@ -65,13 +38,34 @@ def reload_X():
     pickle.dump(X, open('X.pkl', 'wb'))
     return
 
+# Use this method to reload the X.pkl file
+# reload_X()
+# Retrieve the blob object
+blob = bucket.blob('X.pkl')
+# Download the file to a local file
+blob.download_to_filename('X.pkl')
+
+X = pickle.load(open('X.pkl', 'rb'))
 cols = list(X.columns.to_list())
 cols.remove('id')
 cols.remove('TARGET')
 
+
+@site.route('/', methods=['GET', 'POST'])
+def index():
+    customer_id = request.form.get('customer_id')
+    # customer_id="100002"
+    if customer_id is not None:
+        api_route = url_for('site.api', customer_id=customer_id, _external=True)
+        response = requests.get(api_route)
+        plot_data = response.json()
+    else:
+        plot_data = None
+    # Render the Plotly JS graph using the plot data
+    return render_template('landing.html', plot_data=plot_data)
+
 @site.route('/api/<customer_id>')
 def api(customer_id):
-    # reload_X()
     customer_id_float = int(float(customer_id))
     logging.info(f"customer_id: {customer_id} - Data: {X[X['id']==customer_id_float]}")
     try:
