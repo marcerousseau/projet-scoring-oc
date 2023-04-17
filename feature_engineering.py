@@ -46,11 +46,12 @@ def one_hot_encoder(df, nan_as_category = True):
     return df, new_columns
 
 # Preprocess application_train.csv and application_test.csv
-def application_train_test(num_rows = None, nan_as_category = False):
+def application_train_test(num_rows = None, nan_as_category = False, df_test_flag = False):
     # Read data and merge
-    df = pd.read_csv('./data/application_train.csv', nrows= num_rows)
-    test_df = pd.read_csv('./data/application_test.csv', nrows= num_rows)
-    print("Train samples: {}, test samples: {}".format(len(df), len(test_df)))
+    if not df_test_flag:
+        df = pd.read_csv('./data/application_train.csv', nrows= num_rows)
+    else:
+        df = pd.read_csv('./data/application_test.csv', nrows= num_rows)
     # df = df.append(test_df).reset_index()
     # Optional: Remove 4 applications with XNA CODE_GENDER (train set)
     df = df[df['CODE_GENDER'] != 'XNA']
@@ -69,7 +70,7 @@ def application_train_test(num_rows = None, nan_as_category = False):
     df['INCOME_PER_PERSON'] = df['AMT_INCOME_TOTAL'] / df['CNT_FAM_MEMBERS']
     df['ANNUITY_INCOME_PERC'] = df['AMT_ANNUITY'] / df['AMT_INCOME_TOTAL']
     df['PAYMENT_RATE'] = df['AMT_ANNUITY'] / df['AMT_CREDIT']
-    del test_df
+    # del test_df
     gc.collect()
     return df
 
@@ -306,11 +307,11 @@ def display_importances(feature_importance_df_):
     plt.savefig('lgbm_importances01.png')
 
 
-def main(debug = False, reload_data = False):
+def main(debug = False, reload_data = False, df_test_flag = False):
     if reload_data:
         print("Reloading data")
         num_rows = 10000 if debug else None
-        df = application_train_test(num_rows)
+        df = application_train_test(num_rows, df_test_flag=df_test_flag)
         with timer("Process bureau and bureau_balance"):
             bureau = bureau_and_balance(num_rows)
             print("Bureau df shape:", bureau.shape)
@@ -342,10 +343,16 @@ def main(debug = False, reload_data = False):
             del cc
             gc.collect()
         print(f"Shape of final dataframe: {df.shape}")
-        df.to_csv('./data/df.csv', index=False)
+        if not df_test_flag:
+            df.to_csv('./data/df.csv', index=False)
+        else:
+            df.to_csv('./data/df_test.csv', index=False)
     else:
         print(f"Loading data from file")
-        df = pd.read_csv('./data/df.csv')
+        if not df_test_flag:
+            df = pd.read_csv('./data/df.csv')
+        else:
+            df = pd.read_csv('./data/df_test.csv')
         df = df.replace([np.inf, -np.inf], np.nan)
         df.fillna(df.median(), inplace=True)
         X = df.drop(columns=["TARGET"])
@@ -354,11 +361,11 @@ def main(debug = False, reload_data = False):
 
         y = df["TARGET"]
     
-    
-    with timer("Run LightGBM with kfold"):
-        feat_importance = kfold_logistic_regression(df, num_folds= 5, stratified= False, debug= debug)
+    if not df_test_flag:
+        with timer("Run LightGBM with kfold"):
+            feat_importance = kfold_logistic_regression(df, num_folds= 5, stratified= False, debug= debug)
 
 if __name__ == "__main__":
     submission_file_name = "submission_kernel02.csv"
     with timer("Full model run"):
-        main()
+        main(df_test_flag=True, reload_data=True)
