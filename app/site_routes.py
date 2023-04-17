@@ -68,13 +68,12 @@ def index():
         if plot_data['error']:
             plot_data = {}
             error = True
-        personal_data = plot_data['personal_data']
         customer_id = plot_data['customer_id']
     else:
         plot_data = {}
         customer_id = ''
     # Render the Plotly JS graph using the plot data
-    return render_template('landing.html', plot_data=plot_data, error=error, personal_data=personal_data, customer_id=customer_id)
+    return render_template('landing.html', plot_data=plot_data, error=error, customer_id=customer_id)
 
 @site.route('/autocomplete', methods=['GET'])
 def autocomplete():
@@ -99,12 +98,13 @@ def get_value():
     logging.info(f"customer_id: {customer_id} - Key: {key} - Value: {value}")
     return jsonify({'value': value})
 
+DESCRIPTION = pd.read_csv('HomeCredit_columns_description.csv', on_bad_lines='skip', encoding='latin-1')
+
 @site.route('/get_description')
 def get_description():
     key = request.args.get('key')
-    description_dict = {'EXT_SOURCE_1': 'Normalized score from external data source'}
-    if key in description_dict:
-        description = description_dict[key]
+    if key in DESCRIPTION['Row'].values:
+        description = DESCRIPTION[DESCRIPTION['Row']==key]['Description'].values[0]
     else:
         description = 'Description not found'
     return jsonify({'description': description})
@@ -114,7 +114,7 @@ def api(customer_id):
     customer_id_float = int(float(customer_id))
     # logging.info(f"customer_id: {customer_id} - Data: {X[X['id']==customer_id_float]}")
     try:
-        personal_data = DF.loc[DF['SK_ID_CURR']==customer_id_float, cols].to_dict(orient='records')[0]
+        # personal_data = DF.loc[DF['SK_ID_CURR']==customer_id_float, cols].to_dict(orient='records')[0]
         # logging.info(f"customer_id: {customer_id} - Personal Data: {personal_data}")
         prediction = MODEL.predict(X.loc[X['id']==customer_id_float, cols])
         pred_ = float(prediction[0])
@@ -134,7 +134,7 @@ def api(customer_id):
         top_10_shap_dict_ordered = dict(list(top_10_shap_dict_ordered.items())[:10])
         # logging.info(f"customer_id: {customer_id} - Top 10 SHAP Values: {top_10_shap_dict_ordered}")
         # logging.info(f"customer_id: {customer_id} - SHAP Predict: {shap_predict}")
-        return jsonify({'customer_id': customer_id, 'prediction': pred_, 'probability_default':proba_, 'error':False, 'error_message':'', 'top_10_shap_dict_ordered':top_10_shap_dict_ordered, 'base_shape_proba_default': shap_values.base_values[0][1], 'shap_predict': shap_predict, 'personal_data':personal_data})
+        return jsonify({'customer_id': customer_id, 'prediction': pred_, 'probability_default':proba_, 'error':False, 'error_message':'', 'top_10_shap_dict_ordered':top_10_shap_dict_ordered, 'base_shape_proba_default': shap_values.base_values[0][1], 'shap_predict': shap_predict, 'personal_data':{}})
     except Exception as e:
         prediction = None
         logging.error(f"customer_id: {customer_id} - Error: {e} - traceback: {traceback.format_exc()}")
