@@ -137,3 +137,6 @@ feature_importances_best_decision_tree.png
 feature_importances_best_logistic_regression.png
 feature_importances_best_ridge_classifier.png
 first_test.xml
+app/X.pkl
+app/df.csv
+requirements copie.txt
